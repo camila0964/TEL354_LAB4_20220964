@@ -126,8 +126,7 @@ def is_authorized(student, server, service_name, courses):
 # ===================== Flows (asíncrono) =====================
 async def enviar_flow(session, metodo, payload):
     try:
-        async with session.request(metodo, FLOW_PUSHER, json=payload,
-                                   timeout=aiohttp.ClientTimeout(total=5)) as r:
+        async with session.request(metodo, FLOW_PUSHER, json=payload, timeout=aiohttp.ClientTimeout(total=5)) as r:
             return payload["name"], r.status, (await r.text()).strip()
     except (aiohttp.ClientError, asyncio.TimeoutError) as e:
         return payload["name"], f"Error ({type(e).__name__})", ""
@@ -289,12 +288,20 @@ def menu_conexiones():
             print(f"Error: {alumno.name} no está autorizado para {servicio.name} en {servidor.name}")
             return
 
-        route = get_route(CONTROLLER_IP, alumno.mac, get_mac_by_ip(CONTROLLER_IP, servidor.ip))
+        mac_servidor = get_mac_by_ip(CONTROLLER_IP, servidor.ip)
+        if not mac_servidor:
+            print("Floodlight no conoce al servidor: haga ping desde H3 y reintente")
+            return
+        try:
+            route = get_route(CONTROLLER_IP, alumno.mac, mac_servidor)
+        except ValueError:
+            print("Floodlight no conoce al alumno: haga ping desde H1 y reintente")
+            return
+        
         contador += 1
         handler = f"c{contador}"
         flows = build_route(route, alumno, servidor, servicio, handler)
-        connections[handler] = {"alumno": alumno.name, "servidor": servidor.name,
-                                "servicio": servicio.name, "flows": flows}
+        connections[handler] = {"alumno": alumno.name, "servidor": servidor.name,"servicio": servicio.name, "flows": flows}
         print(f"Conexión creada: {handler}")
 
     elif op == "2":
